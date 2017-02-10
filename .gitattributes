@@ -1,0 +1,11 @@
+brokers filter=git-crypt diff=git-crypt
+crm filter=git-crypt diff=git-crypt
+gridSystem filter=git-crypt diff=git-crypt
+notes filter=git-crypt diff=git-crypt
+output filter=git-crypt diff=git-crypt
+q10nik_Dragon filter=git-crypt diff=git-crypt
+Readme.md
+TheHERO filter=git-crypt diff=git-crypt
+tradingBook filter=git-crypt diff=git-crypt
+tradingSystem filter=git-crypt diff=git-crypt
+TradingSystem2017 filter=git-crypt diff=git-crypt
