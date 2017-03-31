@@ -1,0 +1,22 @@
+Technology stack for Q10NIK:
+1. DATABASE:
+   FastDB       - github.com/gavioto/fastdb
+2. GUI:
+   - FLTK GUI
+   - ncurses (text gui)
+   
+======= Column-oriented databases (openssource):
+MariaDB                         - fast growing (mysql founders)
+crate.io                        - make clusters of db
+greenplum.org                   - massively scale oriented databse for big data
+hypertable.com                  - entirely in c++
+monetdb.org                     - column-store pioneer
+voltdb                          - next-generation SQL RDBMS with ACID
+eventql.io                      - dictributed column-oriented database in c++
+
+======= key-value databases
+aerospike.com                   - fastest NoSQL database (better than Redis)
+scylladb
+FastDB                          - c++ application layer database
+                                  github.com/gavioto/fastdb
+LMDB                            - fastest key-value db
