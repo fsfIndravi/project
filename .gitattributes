@@ -2,8 +2,8 @@ brokers             filter=git-crypt diff=git-crypt
 crm                 filter=git-crypt diff=git-crypt
 notes               filter=git-crypt diff=git-crypt
 tradingManual       filter=git-crypt diff=git-crypt
+tradingIdeas        filter=git-crypt diff=git-crypt
 goals               filter=git-crypt diff=git-crypt
 INFO                filter=git-crypt diff=git-crypt
 q10nik              filter=git-crypt diff=git-crypt
 techStack           filter=git-crypt diff=git-crypt
-     
