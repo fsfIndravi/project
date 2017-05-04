@@ -1,0 +1,241 @@
+*Do you intend to add aggregations such as sum(x), count(x), avg(x) etc.
+to FastDb and/or GigaBASE in the near future *
+    SubSQL is object-oriented version of SQL - result of selection is
+    always set of object (not tuples). That is why many relational
+    operations are not possible in SubSQL: such as joins, and aggregate
+    functions. I could not imagine noncontradictory OO semantic for
+    GROUP BY .. HAVING construction.
+
+    But it is not so difficult to implement queries with aggregate
+    functions in C++ - just open a cursor, iterate through all records
+    in the table and calculate correspondent function for the values of
+    the particular field. Group-by queries also can be easily
+    implemented using index for grouping field, selecting records in the
+    order of increasing/decreasing values of this field and checking for
+    duplicate values. Consider the following example: we have table
+    containing information about students and we want to find the best
+    student in each group (student in the group with the highest mark).
+    One of the possible SQL versions of this query is the following:
+
+    select S1.name,S1.mark from Students S1 where S1.mark=(select max(S2.mark) from Student S2
+    where S2.GroupID=S1.GroupID group by S2.GroupID);
+
+    This query is complex and inefficient at the same time and I am not
+    sure that even the smartest optimizer can choose for this query
+    execution plan which will be as efficient as algorithm expressed in
+    imperative programming language mentioned below. Usually such
+    queries are implemented in SQL using temporary table. But temporary
+    table is not very standard approach and more important - by
+    introducing temporary table and so splitting query into two
+    subqueries we loose pure declarative semantic of query - now we
+    explicitly specify steps which system should perform to execute our
+    query. Object-oriented version of the query above is not
+    significantly more complex than SQL statement but is certainly more
+    efficient:
+
+    dbCursor<Student> students;
+    if (students.select("order by group") != 0) {
+        int maxMark =students.name;
+        char studentName[256];
+        dbReference<Group> group = students.group;
+        strcpy(studentName, students->name);
+        while (students.next()) {
+            if (students->group != group) {
+                printf("name=%s, mark=%d\n", studentName, maxMark);
+                group = students->group;
+                maxMark =students->mark;
+                strcpy(studentName, students->name);
+            } else if (students->mark > maxMark) {
+                maxMark =students->mark;
+                strcpy(studentName, students->name);
+            }
+        }
+        printf("name=%s, mark=%d\n", studentName, maxMark);
+    }
+
+*Do you intend to add optional uniqueness checking to FastDb and/or
+GigaBASE indexes?*
+    I have thought a lot about it. There are many problems with its
+    implementation in FastDB/GigaBASE. When object is updated, GigaBASE
+    first compare old and new image of the object to detect changed
+    fields. If field which is part of RELATION is changed, then inverse
+    referenced are also updated. If changed fields was indexed, then
+    record is excluded from the index. After it new image of the record
+    replace old one. And only then record is reinserted in indices for
+    all indexed fields which were changed. Only at this step it is
+    possible to detect unique constraint violation. But in this case we
+    have to undo a lot of work. And it is not so easy.
+
+    There is also problem with reporting unique constraint violation
+    conflict. Just returning error code is not goods idea. Insert method
+    returns OID of created object and update method returns nothing. If
+    insert will return invalid OID and update will return false, then
+    first of all user can forgot to check this returned value, and
+    second - it is not clear what is the source of the problem. Throwing
+    exception is better idea, but exceptions are still bad supported in
+    C++ (in some compilers exception support is switched off by default,
+    some compiler generate a lot of extra code if exception support is
+    enabled, some compiler doesn't correctly support exceptions at all.
+    That is why support of exceptions in GigaBASE/FastDB is optional and
+    it can not be used as mechanism of reporting queue constraint violation.
+
+*Does GigaBASE/FastDB supports only database level locking and do you
+intend to implement fine grain locking.*
+    GigaBASE/FastDB supports multiple-readers-single-writer locking
+    scheme at database level. It means that only one thread can update
+    the database at each moment of time. Implementing fine grain locking
+    will require complete redesign of transaction mechanism. Currently
+    shadow page transaction mechanism is used. There are a lot of
+    advantages of such mechanism: no transaction log, fast recovery,
+    almost no overhead for applications which are not using
+    transactions. The main idea of this approach is atomic change of
+    root page: all objects in database are access through object index
+    and there are two instances of object index: primary and shadow.
+    When transaction is committed, these indices just exchange their
+    roles. But it is very difficult to extend this scheme for concurrent
+    transactions (when database is simultaneously updated by several
+    transaction).
+
+    Also I want to notice that database in any case has to synchronize
+    access to its internal structures. For example allocation of the
+    object should be done in critical section. And as far as any
+    update/insert/deletion of the record in GigaBASE/FastDB requires
+    allocation of multiple objects, then you should realize that even if
+    fine grain locking is used, transactions still have to compete for
+    resources, and it can even cause performance degradation comparing
+    with current scheme.
+
+    The main problem is actually duration of locking: to preserve
+    transaction serialization locks are held until the end of
+    transaction. It was intended that transactions will be mostly small
+    and fast. As far a frequent commits cause multiple synchronized
+    writes to the disk and as far as it is very expensive operation,
+    performance can be awful. To solve the problem, GigaBASE/FastDB
+    provides precommit method which release transaction locks but do not
+    flush changes to the disk.
+
+*Is the WEB API implementation pretty stable?*
+    It was implemented long time ago and have used by a number of users.
+    So I thought that it is stable enough. Certainly its reliability,
+    flexibility, stability can not be compared with real HTTP Servers
+    (such as Apache). But it provides convenient API with GigaBASE, so
+    if you are not going to implement Web portal which should serve 1000
+    requests per second, I think WWWApi+GigaBASE is good choice.
+
+*Are you going to provide OODBC or some other standard interface to
+GigaBASE/FastDB.*
+    No, GigaBASE/FastDB provides its own C++ and C interfaces which are
+    oriented on the work with object and not tuples (as ODBC and most of
+    the other SQL interfaces).
+
+*Was GigaBASE/FastDB used in real applications?*
+    Yes, it was. For example in OoPS proxy server
+    <http://zipper.paco.net/~igor/oops.eng>. I do not yet maintain
+    "success story" list, but I will be glad if you send me reports
+    about using FastDB/GigaBASE in your products.
+
+*After adding a lot off data to a database and then deleting it all, the
+database file keeps its huge size, like when it had the data in it. Is
+there a way to shrink the file size after deleting data?*
+    Database size in GigaBASE never decreased. Space is just marked as
+    free and reused for newly created object. If you need to compactify
+    database file, please use SubSQL "backup" command with "compactify"
+    option.
+
+*Another question, why it is not possible to deference directly a
+reference (using an operator-> for example) instead of using a dbCursor
+and using its at() method ?*
+    Because in this case FastDB has to allocate memory for fetched
+    object. Dynamic memory allocation is significantly expensive
+    operation than allocation of the object on stack (when cursor is
+    used), especially at multiprocessor systems (because of
+    synchronization conflicts in memory allocator). And what is worse it
+    is not clear who and when will deallocate this memory. That is why
+    all access to the objects in FastDB is done through cursors.
+
+*I have 3 classes:
+
+class A
+class B : that inherits from A
+class C : that inherits from A
+class D : that contains a reference on an A object. 
+
+I want to have this> reference on a class A object but actually this
+object is a B or C object. Is that possible with FastDB ? *
+    Sorry, not. Due to efficiency reasons inheritance support in FastDB
+    is very limited. Polymorphic queries and references are not
+    supported. The problem of handling polymorphic reference in FastDB
+    is caused by lack of type information in record header. So looking
+    at the record at runtime it is impossible to determine to which type
+    it belongs. All checking is done at compile time. That is why given
+    dereferencewill point always to the table A. What can be done:
+
+     1. You can store information about type independently together with
+        this reference and then cast this reference to the proper type.
+     2. If you need to access only common A part of B and C classes,
+        then you can dereference A reference without any extra steps. 
+
+*Assertion failure in diskless mode in FastDB*
+    In diskless mode database file can not be extended (it will be too
+    expensive operation). So you need to specify large enough size in
+    the constructor (initSize). It is not a problem to specify very
+    large value, because in any case physical space will be allocated on
+    demand. So I think that 4Mb is not right value. If you expect that
+    database will fit in 4Mb, then specify 40Mb just to make sure that
+    it will never happen.
+
+*From an API perspective, I do not see why I should have to call
+precommit() everytime I access the db to select or update, Should the
+fastDB cursor methods do this automatically instead, making a client
+side programmer's task that much easier?*
+    In most applications, there are well defined sequence of actions
+    which should be done atomically (either all are committed either all
+    are rollbacked). So there is not problem in specifying begin/end
+    transaction statements. It is definitely strange idea to do
+    precommit after each request to the database. For example, if you
+    are implementing some Web server application, then each request from
+    client should be handled as separate transaction. Also FastDB
+    doesn't know when cursor is no more needed by application and
+    transaction can be closed. Certainly if cursor is local variable and
+    its destructor is called, then it is clear then cursor data is not
+    needed any more. But there are can be static cursors... 
+*Does Gigabase support NULL values*
+    Sorry, FastDB doesn't support NULLs and it will be difficult to add
+    this support in future. The problem is that FastDB tables are
+    directly mapped to C++ classes. And how you will represent NULL
+    value of primitive types (integer, real,...)? There is also one
+    other issues with nulls - three value logic is not very natural and
+    simple thing. For example one of the founders of the relational
+    model K.Date consider nulls to be "bad thing" and suggest to replace
+    them with some special values. I completely agree with him: you can
+    reserve some value of attribute domain (for example 0) and treat it
+    as NULL. And no special construction and semantic is needed to work
+    with this value. 
+*Does Gigabase support combined-field index and duplicate key?*
+    GigaBASE and FastDB doesn't support combine indices. You can
+    simulate them either by storing in the record concatenated field and
+    indexing it, either creating index for all parts of the compound key
+    and use AND to concatenate search conditions:
+
+    key1=? AND key2=? AND ...
+
+    In this case GigaBASE will use index search for each key and them
+    perform merge of the results.
+
+    GigaBASE doesn't support unique constraint - so you can insert
+    duplicates in the index. If you want to prevent it, you should check
+    first if such key is already present in the index.
+
+*Will hashed indexes be supported anytime soon in GigaBASE?*
+    Frankly speaking I do not plan to implement them because for it is
+    difficult to find good hashing algorithm for DBMS in the assumption
+    that most of the data is on disk. Hash function are very efficient
+    when there is single hash table (array) which can be indexed by hash
+    function and provides reference to the object. But having very large
+    table has its drawbacks - if we update only one entry of the table
+    will will have to save the whole table to the disk. So we have to
+    use hierarchical hash table (consists of pages). But here the data
+    structure is very similar with what we have in B-Tree and that is
+    why it is not so much sense in supporting hash indexing in addition
+    to B-Tree.
+
