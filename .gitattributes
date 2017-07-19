@@ -7,3 +7,5 @@ goals               filter=git-crypt diff=git-crypt
 INFO                filter=git-crypt diff=git-crypt
 q10nik              filter=git-crypt diff=git-crypt
 techStack           filter=git-crypt diff=git-crypt
+tradingNew          filter=git-crypt diff=git-crypt
+
